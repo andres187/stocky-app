@@ -1,6 +1,7 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../context/CartContext';
 import { colors, fontSizes, radii, spacing } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
@@ -15,9 +16,10 @@ const NAV_LINKS: { label: string; categoria?: string }[] = [
 export default function Header() {
   const { count } = useCart();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
       <Pressable onPress={() => navigation.navigate('Home', { categoria: 'todo' })}>
         <Logo />
       </Pressable>
