@@ -26,6 +26,15 @@ export default function AccountScreen() {
         {customer.phone && <Row label="Celular" value={`${customer.regionCode ?? ''} ${customer.phone}`} />}
       </View>
 
+      <Pressable style={styles.linkRow} onPress={() => navigation.navigate('Orders')}>
+        <Text style={styles.linkRowText}>Mis compras</Text>
+        <Text style={styles.linkRowChevron}>›</Text>
+      </Pressable>
+      <Pressable style={styles.linkRow} onPress={() => navigation.navigate('MyReviews')}>
+        <Text style={styles.linkRowText}>Mis comentarios</Text>
+        <Text style={styles.linkRowChevron}>›</Text>
+      </Pressable>
+
       <Pressable style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutBtnText}>Cerrar sesión</Text>
       </Pressable>
@@ -72,6 +81,24 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     color: colors.ink,
     fontWeight: '600',
+  },
+  linkRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radii.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  linkRowText: {
+    fontSize: fontSizes.md,
+    fontWeight: '600',
+    color: colors.ink,
+  },
+  linkRowChevron: {
+    fontSize: fontSizes.lg,
+    color: colors.inkDim,
   },
   logoutBtn: {
     borderWidth: 1,

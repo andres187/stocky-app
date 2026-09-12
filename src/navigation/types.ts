@@ -19,4 +19,8 @@ export type RootStackParamList = {
   };
   Register: undefined;
   Account: undefined;
+  Orders: undefined;
+  OrderDetail: { orderId: number };
+  MyReviews: undefined;
+  ReviewForm: { productId: number; productName: string; reviewId?: number; rating?: number; body?: string | null };
 };
