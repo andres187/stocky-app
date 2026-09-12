@@ -25,3 +25,16 @@ export type CartLine = { productId: Product['id']; color: string; size: string; 
 export type CartLineWithProduct = CartLine & { key: string; product: Product };
 
 export type AddItemResult = { ok: boolean; message?: string };
+
+export type Customer = {
+  id: number;
+  email: string;
+  fullName: string;
+  lastName: string | null;
+  regionCode: string | null;
+  phone: string | null;
+};
+
+export type AuthChannel = 'sms' | 'email';
+
+export type AuthResult = { ok: true } | { ok: false; message: string };
