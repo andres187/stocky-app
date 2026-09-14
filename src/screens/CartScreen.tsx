@@ -3,6 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useCart } from '../context/CartContext';
+import SuggestedStrip from '../components/SuggestedStrip';
 import { fmt } from '../lib/format';
 import { colors, fontSizes, radii, spacing } from '../theme/tokens';
 import type { CartLineWithProduct } from '../lib/types';
@@ -65,7 +66,15 @@ export default function CartScreen() {
       {items.length === 0 ? (
         <Text style={styles.empty}>Tu bolsa está vacía. Explora la colección y añade tus piezas favoritas.</Text>
       ) : (
-        <FlatList data={items} keyExtractor={(l) => l.key} renderItem={renderItem} contentContainerStyle={styles.list} />
+        <FlatList
+          data={items}
+          keyExtractor={(l) => l.key}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          ListFooterComponent={
+            <SuggestedStrip refs={items.map((line) => line.product.id)} limit={4} titulo="Completa tu look" />
+          }
+        />
       )}
       <View style={styles.foot}>
         <View style={styles.subtotalRow}>
