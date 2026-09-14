@@ -2,6 +2,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { colors, fontSizes, radii, spacing } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
@@ -15,6 +16,7 @@ const NAV_LINKS: { label: string; categoria?: string }[] = [
 
 export default function Header() {
   const { count } = useCart();
+  const { customer } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
 
@@ -30,18 +32,27 @@ export default function Header() {
           </Pressable>
         ))}
       </View>
-      <Pressable
-        style={styles.cartBtn}
-        onPress={() => navigation.navigate('Cart')}
-        accessibilityLabel={`Ver bolsa, ${count} producto${count === 1 ? '' : 's'}`}
-      >
-        <Text style={styles.cartIcon}>👜</Text>
-        {count > 0 && (
-          <View style={styles.cartCount}>
-            <Text style={styles.cartCountText}>{count}</Text>
-          </View>
-        )}
-      </Pressable>
+      <View style={styles.actions}>
+        <Pressable
+          style={styles.accountBtn}
+          onPress={() => navigation.navigate(customer ? 'Account' : 'SignIn')}
+          accessibilityLabel={customer ? 'Mi cuenta' : 'Iniciar sesión'}
+        >
+          <Text style={styles.accountIcon}>👤</Text>
+        </Pressable>
+        <Pressable
+          style={styles.cartBtn}
+          onPress={() => navigation.navigate('Cart')}
+          accessibilityLabel={`Ver bolsa, ${count} producto${count === 1 ? '' : 's'}`}
+        >
+          <Text style={styles.cartIcon}>👜</Text>
+          {count > 0 && (
+            <View style={styles.cartCount}>
+              <Text style={styles.cartCountText}>{count}</Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -64,6 +75,17 @@ const styles = StyleSheet.create({
   navLink: {
     fontSize: fontSizes.sm,
     color: colors.ink,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  accountBtn: {
+    padding: spacing.xs,
+  },
+  accountIcon: {
+    fontSize: 18,
   },
   cartBtn: {
     position: 'relative',
