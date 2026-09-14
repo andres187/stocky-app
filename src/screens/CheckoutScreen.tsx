@@ -1,18 +1,19 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { checkout, listPseBanks } from '../lib/orders';
 import { fmt } from '../lib/format';
+import { newIdempotencyKey } from '../lib/ids';
+import { tokenizeCard } from '../lib/wompi';
 import { shippingFor } from '../lib/shipping';
 import { colors, fontSizes, radii, spacing } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
+import type { PseBank } from '../lib/types';
 
-const PAYMENT_METHODS = [
-  { key: 'tarjeta', label: 'Tarjeta de crédito o débito' },
-  { key: 'pse', label: 'PSE / Transferencia' },
-  { key: 'contraentrega', label: 'Pago contraentrega' },
-];
+const LEGAL_ID_TYPES = ['CC', 'CE', 'NIT', 'PP', 'TI'];
 
 type Form = {
   nombre: string;
@@ -21,7 +22,16 @@ type Form = {
   direccion: string;
   ciudad: string;
   notas: string;
-  pago: string;
+  pago: 'tarjeta' | 'pse';
+  cardNumber: string;
+  cardExpMonth: string;
+  cardExpYear: string;
+  cardCvc: string;
+  cardHolder: string;
+  pseUserType: 'natural' | 'juridica';
+  pseLegalIdType: string;
+  pseLegalId: string;
+  pseBankCode: string;
 };
 
 function validateForm(form: Form) {
@@ -31,61 +41,151 @@ function validateForm(form: Form) {
   if (!/^\d{7,}$/.test(form.telefono.replace(/\s/g, ''))) next.telefono = 'Ingresa un teléfono válido.';
   if (!form.direccion.trim()) next.direccion = 'Ingresa tu dirección de envío.';
   if (!form.ciudad.trim()) next.ciudad = 'Ingresa tu ciudad.';
-  return next;
-}
 
-function genOrderNumber() {
-  return 'LV-' + Math.floor(100000 + Math.random() * 900000);
+  if (form.pago === 'tarjeta') {
+    if (!/^\d{13,19}$/.test(form.cardNumber.replace(/\s/g, ''))) next.cardNumber = 'Ingresa un número de tarjeta válido.';
+    if (!/^\d{1,2}$/.test(form.cardExpMonth)) next.cardExpMonth = 'Mes inválido.';
+    if (!/^\d{2}$/.test(form.cardExpYear)) next.cardExpYear = 'Año inválido (AA).';
+    if (!/^\d{3,4}$/.test(form.cardCvc)) next.cardCvc = 'CVC inválido.';
+    if (!form.cardHolder.trim()) next.cardHolder = 'Ingresa el nombre del titular.';
+  } else {
+    if (!form.pseBankCode) next.pseBankCode = 'Selecciona tu banco.';
+    if (!form.pseLegalId.trim()) next.pseLegalId = 'Ingresa tu número de documento.';
+  }
+  return next;
 }
 
 export default function CheckoutScreen() {
   const { items, subtotal, clearCart } = useCart();
+  const { customer } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [form, setForm] = useState<Form>({
-    nombre: '',
-    email: '',
-    telefono: '',
+    nombre: customer ? `${customer.fullName} ${customer.lastName ?? ''}`.trim() : '',
+    email: customer?.email ?? '',
+    telefono: customer?.phone ?? '',
     direccion: '',
     ciudad: '',
     notas: '',
     pago: 'tarjeta',
+    cardNumber: '',
+    cardExpMonth: '',
+    cardExpYear: '',
+    cardCvc: '',
+    cardHolder: '',
+    pseUserType: 'natural',
+    pseLegalIdType: 'CC',
+    pseLegalId: '',
+    pseBankCode: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof Form, string>>>({});
-  const [order, setOrder] = useState<{ number: string; total: number; email: string } | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [pseBanks, setPseBanks] = useState<PseBank[]>([]);
+  const [pendingRedirectUrl, setPendingRedirectUrl] = useState<string | null>(null);
+  const [idempotencyKey] = useState(newIdempotencyKey);
 
   const shipping = shippingFor(subtotal);
   const total = subtotal + shipping;
 
   useEffect(() => {
-    if (!order && items.length === 0) {
+    if (!customer) {
+      navigation.replace('SignIn');
+    }
+  }, [customer, navigation]);
+
+  useEffect(() => {
+    if (items.length === 0 && !pendingRedirectUrl) {
       navigation.replace('Home', { categoria: 'todo' });
     }
-  }, [order, items.length, navigation]);
+  }, [items.length, navigation, pendingRedirectUrl]);
+
+  useEffect(() => {
+    if (form.pago !== 'pse' || pseBanks.length > 0) return;
+    listPseBanks()
+      .then(setPseBanks)
+      .catch(() => setSubmitError('No se pudo cargar la lista de bancos PSE. Intenta de nuevo.'));
+  }, [form.pago, pseBanks.length]);
 
   function update<K extends keyof Form>(field: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     const next = validateForm(form);
     setErrors(next);
     if (Object.keys(next).length > 0) return;
-    setOrder({ number: genOrderNumber(), total, email: form.email });
-    clearCart();
+
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      const paymentMethod =
+        form.pago === 'tarjeta'
+          ? {
+              type: 'CARD' as const,
+              token: await tokenizeCard({
+                number: form.cardNumber,
+                expMonth: form.cardExpMonth.padStart(2, '0'),
+                expYear: form.cardExpYear,
+                cvc: form.cardCvc,
+                cardHolder: form.cardHolder,
+              }),
+              installments: 1,
+            }
+          : {
+              type: 'PSE' as const,
+              user_type: (form.pseUserType === 'natural' ? 0 : 1) as 0 | 1,
+              user_legal_id_type: form.pseLegalIdType,
+              user_legal_id: form.pseLegalId,
+              financial_institution_code: form.pseBankCode,
+              payment_description: `Pedido Stocky`,
+            };
+
+      const order = await checkout({
+        customer: {
+          fullName: form.nombre,
+          email: form.email,
+          phone: form.telefono,
+          address: form.direccion,
+          city: form.ciudad,
+          notes: form.notas || undefined,
+        },
+        lines: items.map((line) => ({
+          productId: line.productId,
+          color: line.color,
+          size: line.size,
+          quantity: line.qty,
+        })),
+        amountInCents: Math.round(total * 100),
+        paymentMethod,
+        idempotencyKey,
+      });
+
+      clearCart();
+
+      if (order.redirectUrl) {
+        setPendingRedirectUrl(order.redirectUrl);
+        Linking.openURL(order.redirectUrl).catch(() => {});
+        return;
+      }
+
+      navigation.replace('OrderDetail', { orderId: order.id });
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'No se pudo procesar tu pedido. Intenta de nuevo.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  if (order) {
+  if (pendingRedirectUrl) {
     return (
       <View style={styles.confirmation}>
-        <Text style={styles.eyebrow}>Pedido recibido</Text>
-        <Text style={styles.confirmTitle}>Gracias por tu compra</Text>
+        <Text style={styles.eyebrow}>Pago en proceso</Text>
+        <Text style={styles.confirmTitle}>Termina tu pago en el banco</Text>
         <Text style={styles.confirmText}>
-          Tu pedido <Text style={styles.mono}>{order.number}</Text> fue confirmado por{' '}
-          <Text style={styles.bold}>{fmt.format(order.total)}</Text>. Te enviamos los detalles a{' '}
-          <Text style={styles.bold}>{order.email}</Text>.
+          Te enviamos a tu banco para confirmar el pago PSE. Si no se abrió automáticamente, usa el siguiente enlace.
         </Text>
-        <Pressable style={styles.ctaBtn} onPress={() => navigation.navigate('Home', { categoria: 'todo' })}>
-          <Text style={styles.ctaBtnText}>Volver a la tienda →</Text>
+        <Pressable style={styles.ctaBtn} onPress={() => Linking.openURL(pendingRedirectUrl).catch(() => {})}>
+          <Text style={styles.ctaBtnText}>Abrir enlace de pago →</Text>
         </Pressable>
       </View>
     );
@@ -152,15 +252,103 @@ export default function CheckoutScreen() {
       </View>
 
       <Text style={styles.formH}>Método de pago</Text>
-      {PAYMENT_METHODS.map((m) => (
-        <Pressable key={m.key} style={styles.paymentOption} onPress={() => update('pago', m.key)}>
-          <View style={[styles.radio, form.pago === m.key && styles.radioSelected]} />
-          <Text style={styles.paymentLabel}>{m.label}</Text>
+      <View style={styles.paymentOption}>
+        <Pressable style={styles.radioRow} onPress={() => update('pago', 'tarjeta')}>
+          <View style={[styles.radio, form.pago === 'tarjeta' && styles.radioSelected]} />
+          <Text style={styles.paymentLabel}>Tarjeta de crédito o débito</Text>
         </Pressable>
-      ))}
+      </View>
+      <View style={styles.paymentOption}>
+        <Pressable style={styles.radioRow} onPress={() => update('pago', 'pse')}>
+          <View style={[styles.radio, form.pago === 'pse' && styles.radioSelected]} />
+          <Text style={styles.paymentLabel}>PSE / Transferencia</Text>
+        </Pressable>
+      </View>
 
-      <Pressable style={styles.submitBtn} onPress={handleSubmit}>
-        <Text style={styles.submitBtnText}>Confirmar pedido — {fmt.format(total)}</Text>
+      {form.pago === 'tarjeta' && (
+        <View style={styles.subForm}>
+          <Field
+            label="Número de tarjeta"
+            value={form.cardNumber}
+            onChangeText={(v) => update('cardNumber', v)}
+            error={errors.cardNumber}
+            keyboardType="number-pad"
+            placeholder="4242 4242 4242 4242"
+          />
+          <View style={styles.row3}>
+            <View style={styles.row3Item}>
+              <Field label="Mes (MM)" value={form.cardExpMonth} onChangeText={(v) => update('cardExpMonth', v)} error={errors.cardExpMonth} keyboardType="number-pad" />
+            </View>
+            <View style={styles.row3Item}>
+              <Field label="Año (AA)" value={form.cardExpYear} onChangeText={(v) => update('cardExpYear', v)} error={errors.cardExpYear} keyboardType="number-pad" />
+            </View>
+            <View style={styles.row3Item}>
+              <Field label="CVC" value={form.cardCvc} onChangeText={(v) => update('cardCvc', v)} error={errors.cardCvc} keyboardType="number-pad" />
+            </View>
+          </View>
+          <Field label="Nombre del titular" value={form.cardHolder} onChangeText={(v) => update('cardHolder', v)} error={errors.cardHolder} />
+        </View>
+      )}
+
+      {form.pago === 'pse' && (
+        <View style={styles.subForm}>
+          <Text style={styles.label}>Banco</Text>
+          <View style={styles.bankGrid}>
+            {pseBanks.map((bank) => (
+              <Pressable
+                key={bank.code}
+                style={[styles.bankChip, form.pseBankCode === bank.code && styles.bankChipSelected]}
+                onPress={() => update('pseBankCode', bank.code)}
+              >
+                <Text style={[styles.bankChipText, form.pseBankCode === bank.code && styles.bankChipTextSelected]}>{bank.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {errors.pseBankCode && <Text style={styles.fieldError}>{errors.pseBankCode}</Text>}
+
+          <Text style={styles.label}>Tipo de persona</Text>
+          <View style={styles.paymentOption}>
+            <Pressable style={styles.radioRow} onPress={() => update('pseUserType', 'natural')}>
+              <View style={[styles.radio, form.pseUserType === 'natural' && styles.radioSelected]} />
+              <Text style={styles.paymentLabel}>Persona natural</Text>
+            </Pressable>
+          </View>
+          <View style={styles.paymentOption}>
+            <Pressable style={styles.radioRow} onPress={() => update('pseUserType', 'juridica')}>
+              <View style={[styles.radio, form.pseUserType === 'juridica' && styles.radioSelected]} />
+              <Text style={styles.paymentLabel}>Persona jurídica</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.label}>Tipo de documento</Text>
+          <View style={styles.bankGrid}>
+            {LEGAL_ID_TYPES.map((type) => (
+              <Pressable
+                key={type}
+                style={[styles.bankChip, form.pseLegalIdType === type && styles.bankChipSelected]}
+                onPress={() => update('pseLegalIdType', type)}
+              >
+                <Text style={[styles.bankChipText, form.pseLegalIdType === type && styles.bankChipTextSelected]}>{type}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Field
+            label="Número de documento"
+            value={form.pseLegalId}
+            onChangeText={(v) => update('pseLegalId', v)}
+            error={errors.pseLegalId}
+            keyboardType="number-pad"
+          />
+        </View>
+      )}
+
+      {submitError && <Text style={styles.fieldError}>{submitError}</Text>}
+
+      <Pressable style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} disabled={submitting} onPress={handleSubmit}>
+        <Text style={styles.submitBtnText}>
+          {submitting ? 'Procesando…' : `Confirmar pedido — ${fmt.format(total)}`}
+        </Text>
       </Pressable>
     </ScrollView>
   );
@@ -179,7 +367,7 @@ function Field({
   onChangeText: (v: string) => void;
   error?: string;
   placeholder?: string;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad';
+  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'number-pad';
 }) {
   return (
     <View style={styles.field}>
@@ -297,9 +485,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   paymentOption: {
+    marginBottom: spacing.sm,
+  },
+  radioRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.sm,
   },
   radio: {
     width: 18,
@@ -317,6 +507,46 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.ink,
   },
+  subForm: {
+    backgroundColor: colors.card,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    marginBottom: spacing.md,
+  },
+  row3: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  row3Item: {
+    flex: 1,
+  },
+  bankGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  bankChip: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.pill,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  bankChipSelected: {
+    borderColor: colors.navy,
+    backgroundColor: colors.navy,
+  },
+  bankChipText: {
+    fontSize: fontSizes.xs,
+    color: colors.ink,
+  },
+  bankChipTextSelected: {
+    color: colors.white,
+    fontWeight: '600',
+  },
   submitBtn: {
     backgroundColor: colors.navy,
     borderRadius: radii.sm,
@@ -324,6 +554,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.lg,
     marginBottom: spacing.xl,
+  },
+  submitBtnDisabled: {
+    opacity: 0.5,
   },
   submitBtnText: {
     color: colors.white,
@@ -354,13 +587,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     lineHeight: 22,
     marginBottom: spacing.lg,
-  },
-  mono: {
-    fontFamily: 'Courier',
-    fontWeight: '700',
-  },
-  bold: {
-    fontWeight: '700',
   },
   ctaBtn: {
     backgroundColor: colors.navy,

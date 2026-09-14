@@ -10,6 +10,10 @@ import AccountScreen from '../screens/auth/AccountScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import SignInScreen from '../screens/auth/SignInScreen';
 import VerifyCodeScreen from '../screens/auth/VerifyCodeScreen';
+import OrdersScreen from '../screens/account/OrdersScreen';
+import OrderDetailScreen from '../screens/account/OrderDetailScreen';
+import MyReviewsScreen from '../screens/account/MyReviewsScreen';
+import ReviewFormScreen from '../screens/account/ReviewFormScreen';
 import { colors } from '../theme/tokens';
 import type { RootStackParamList } from './types';
 
@@ -32,6 +36,10 @@ export default function RootNavigator() {
       <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Crear cuenta' }} />
       <Stack.Screen name="VerifyCode" component={VerifyCodeScreen} options={{ title: 'Verificar código' }} />
       <Stack.Screen name="Account" component={AccountScreen} options={{ title: 'Mi cuenta' }} />
+      <Stack.Screen name="Orders" component={OrdersScreen} options={{ title: 'Mis compras' }} />
+      <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Detalle del pedido' }} />
+      <Stack.Screen name="MyReviews" component={MyReviewsScreen} options={{ title: 'Mis comentarios' }} />
+      <Stack.Screen name="ReviewForm" component={ReviewFormScreen} options={{ title: 'Tu comentario' }} />
     </Stack.Navigator>
   );
 }
