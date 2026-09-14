@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { apiFetch } from '../lib/api';
 import type { Product } from '../lib/types';
+import { msUntilNextWindow, ROTATION_WINDOW_MS } from '../lib/rotation';
 
 type ProductsContextValue = {
   products: Product[];
@@ -31,6 +33,29 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refetch();
+  }, [refetch]);
+
+  // La vitrina rota cada hora en el backend (ver rotationService.js). Un primer
+  // timeout hasta el próximo cambio de ventana y luego un intervalo cada hora,
+  // más un refresco al volver a primer plano — el caso principal en móvil, donde
+  // la app puede pasar horas en segundo plano.
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const timeout = setTimeout(() => {
+      refetch();
+      interval = setInterval(refetch, ROTATION_WINDOW_MS);
+    }, msUntilNextWindow());
+
+    function onAppStateChange(status: AppStateStatus) {
+      if (status === 'active') refetch();
+    }
+    const subscription = AppState.addEventListener('change', onAppStateChange);
+
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+      subscription.remove();
+    };
   }, [refetch]);
 
   return (

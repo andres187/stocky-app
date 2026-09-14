@@ -1,13 +1,17 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useProducts } from '../context/ProductsContext';
 import { fmt } from '../lib/format';
+import { fetchDestacados } from '../lib/products';
+import type { Product } from '../lib/types';
 import { colors, fontSizes, radii, spacing } from '../theme/tokens';
 
 export default function Hero() {
   const { products } = useProducts();
 
-  const slides = useMemo(
+  // Curaduría manual del admin, como respaldo mientras carga /products/destacados
+  // o si la petición falla — así el Hero nunca queda vacío por un error de red.
+  const fallbackSlides = useMemo(
     () =>
       products
         .filter((p) => p.bestsellerOrder != null)
@@ -15,6 +19,21 @@ export default function Hero() {
         .slice(0, 3),
     [products]
   );
+
+  const [destacados, setDestacados] = useState<Product[] | null>(null);
+
+  // Se reconsulta cada vez que ProductsContext vuelve a traer el catálogo (carga
+  // inicial, rotación horaria, o volver a primer plano), así "Más vendidos" rota
+  // junto con el resto de la vitrina.
+  useEffect(() => {
+    let cancelled = false;
+    fetchDestacados(3)
+      .then((data) => { if (!cancelled) setDestacados(data); })
+      .catch(() => { if (!cancelled) setDestacados(null); });
+    return () => { cancelled = true; };
+  }, [products]);
+
+  const slides = destacados && destacados.length > 0 ? destacados : fallbackSlides;
 
   return (
     <View style={styles.hero}>

@@ -7,6 +7,7 @@ import BenefitsStrip from '../components/BenefitsStrip';
 import Hero from '../components/Hero';
 import Pagination from '../components/Pagination';
 import ProductGrid from '../components/ProductGrid';
+import SuggestedStrip from '../components/SuggestedStrip';
 import { useProducts } from '../context/ProductsContext';
 import { filterProducts } from '../data/products';
 import { apiFetch } from '../lib/api';
@@ -86,6 +87,7 @@ export default function HomeScreen() {
   const footer = (
     <View>
       <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+      <SuggestedStrip categoria={activeChip} />
       <BenefitsStrip />
       <View style={styles.footLinks}>
         <Text style={styles.footHead}>Ayuda</Text>
