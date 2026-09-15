@@ -1,14 +1,23 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getOrder } from '../../lib/orders';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { getOrder, confirmReceived } from '../../lib/orders';
 import { listMyReviews } from '../../lib/reviews';
+import { listMyReturns } from '../../lib/returns';
+import { daysLeftToReturn } from '../../lib/dates';
 import ShipmentTracker from '../../components/ShipmentTracker';
 import { formatDate, fmt } from '../../lib/format';
 import { colors, fontSizes, radii, spacing } from '../../theme/tokens';
-import type { Order } from '../../lib/types';
+import type { Order, ReturnRequest } from '../../lib/types';
 import type { RootStackParamList } from '../../navigation/types';
+
+const RETURN_STATUS_LABEL: Record<ReturnRequest['status'], string> = {
+  pending: 'En revisión',
+  approved: 'Aprobada',
+  rejected: 'Rechazada',
+  cancelled: 'Cancelada',
+};
 
 const STATUS_LABEL: Record<Order['status'], string> = {
   pending: 'Pendiente',
@@ -23,20 +32,49 @@ export default function OrderDetailScreen() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [reviewedProductIds, setReviewedProductIds] = useState<Set<number>>(new Set());
+  const [returnRequest, setReturnRequest] = useState<ReturnRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    Promise.all([getOrder(orderId), listMyReviews().catch(() => [])])
-      .then(([fetchedOrder, reviews]) => {
+    Promise.all([getOrder(orderId), listMyReviews().catch(() => []), listMyReturns().catch(() => [])])
+      .then(([fetchedOrder, reviews, returns]) => {
         setOrder(fetchedOrder);
         setReviewedProductIds(new Set(reviews.map((r) => r.productId)));
+        setReturnRequest(returns.find((r) => r.orderId === orderId) || null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar el pedido.'))
       .finally(() => setLoading(false));
   }, [orderId]);
+
+  function handleConfirmReceived() {
+    Alert.alert(
+      '¿Ya lo recibiste?',
+      'A partir de hoy tienes 15 días para pedir una devolución si algo no está bien.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            setConfirming(true);
+            setConfirmError(null);
+            try {
+              await confirmReceived(orderId);
+              load();
+            } catch (err) {
+              setConfirmError(err instanceof Error ? err.message : 'No se pudo confirmar.');
+            } finally {
+              setConfirming(false);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   useEffect(() => {
     load();
@@ -106,6 +144,49 @@ export default function OrderDetailScreen() {
           <Text style={styles.sectionH}>Seguimiento</Text>
           <View style={styles.card}>
             <ShipmentTracker shipment={order.shipment} />
+
+            {order.shipment.status === 'delivered' && (
+              <View style={styles.receiptBox}>
+                <Pressable
+                  style={[styles.confirmBtn, confirming && styles.confirmBtnDisabled]}
+                  disabled={confirming}
+                  onPress={handleConfirmReceived}
+                >
+                  <Text style={styles.confirmBtnText}>{confirming ? 'Confirmando…' : 'Ya lo recibí'}</Text>
+                </Pressable>
+                {confirmError && <Text style={styles.errorText}>{confirmError}</Text>}
+              </View>
+            )}
+
+            {order.shipment.status === 'received' && (
+              <View style={styles.receiptBox}>
+                {returnRequest ? (
+                  <Text style={styles.cardText}>
+                    Solicitud de devolución: {RETURN_STATUS_LABEL[returnRequest.status]}
+                  </Text>
+                ) : (
+                  (() => {
+                    const daysLeft = daysLeftToReturn(order.shipment!.receivedAt);
+                    if (daysLeft != null && daysLeft > 0) {
+                      return (
+                        <>
+                          <Text style={styles.cardText}>
+                            Tienes {daysLeft} {daysLeft === 1 ? 'día' : 'días'} más para pedir una devolución.
+                          </Text>
+                          <Pressable
+                            style={styles.reviewBtn}
+                            onPress={() => navigation.navigate('ReturnRequest', { orderId: order.id, reference: order.reference })}
+                          >
+                            <Text style={styles.reviewBtnText}>Solicitar devolución</Text>
+                          </Pressable>
+                        </>
+                      );
+                    }
+                    return <Text style={styles.cardText}>El plazo para pedir una devolución ya venció.</Text>;
+                  })()
+                )}
+              </View>
+            )}
           </View>
         </>
       )}
@@ -234,6 +315,28 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.ink,
     marginBottom: 2,
+  },
+  receiptBox: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    gap: spacing.sm,
+  },
+  confirmBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.navy,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  confirmBtnDisabled: {
+    opacity: 0.5,
+  },
+  confirmBtnText: {
+    color: colors.white,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
   },
   totals: {
     backgroundColor: colors.card,

@@ -23,4 +23,5 @@ export type RootStackParamList = {
   OrderDetail: { orderId: number };
   MyReviews: undefined;
   ReviewForm: { productId: number; productName: string; reviewId?: number; rating?: number; body?: string | null };
+  ReturnRequest: { orderId: number; reference: string };
 };

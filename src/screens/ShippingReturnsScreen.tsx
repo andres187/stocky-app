@@ -1,12 +1,7 @@
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { colors, fontSizes, spacing } from '../theme/tokens';
-import type { RootStackParamList } from '../navigation/types';
 
 export default function ShippingReturnsScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.h2}>Envíos y cambios</Text>
@@ -19,15 +14,15 @@ export default function ShippingReturnsScreen() {
       <Text style={styles.li}>Recibirás un correo con el número de guía apenas tu pedido salga de bodega.</Text>
 
       <Text style={styles.formH}>Cambios y devoluciones</Text>
-      <Text style={styles.li}>Tienes 30 días calendario desde que recibes tu pedido para solicitar un cambio.</Text>
-      <Text style={styles.li}>La prenda debe estar sin uso, con etiquetas originales.</Text>
-      <Text style={styles.li}>Los cambios por talla no tienen costo adicional de envío.</Text>
       <Text style={styles.li}>
-        Para iniciar un cambio, escríbenos desde{' '}
-        <Text style={styles.link} onPress={() => navigation.navigate('Contact')}>
-          contacto
-        </Text>{' '}
-        con tu número de pedido.
+        Cuando te llegue el pedido, confírmalo con "Ya lo recibí" en Mis compras. Si no lo confirmas, lo damos
+        por recibido automáticamente a los 7 días de entregado.
+      </Text>
+      <Text style={styles.li}>Desde que confirmas que lo recibiste, tienes 15 días calendario para solicitar una devolución.</Text>
+      <Text style={styles.li}>La prenda debe estar sin uso, con etiquetas originales.</Text>
+      <Text style={styles.li}>
+        Para iniciar una devolución, entra a tu pedido en Mis compras y usa "Solicitar devolución". Revisamos cada
+        solicitud y te avisamos por correo.
       </Text>
     </ScrollView>
   );
@@ -64,9 +59,5 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginBottom: spacing.xs,
     lineHeight: 20,
-  },
-  link: {
-    color: colors.roseDeepHover,
-    textDecorationLine: 'underline',
   },
 });
