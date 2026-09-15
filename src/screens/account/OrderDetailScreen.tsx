@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getOrder } from '../../lib/orders';
 import { listMyReviews } from '../../lib/reviews';
+import ShipmentTracker from '../../components/ShipmentTracker';
 import { formatDate, fmt } from '../../lib/format';
 import { colors, fontSizes, radii, spacing } from '../../theme/tokens';
 import type { Order } from '../../lib/types';
@@ -98,8 +99,16 @@ export default function OrderDetailScreen() {
         <Text style={styles.cardText}>{order.shippingContact.address}</Text>
         <Text style={styles.cardText}>{order.shippingContact.city}</Text>
         <Text style={styles.cardText}>{order.shippingContact.phone}</Text>
-        {order.shipment && <Text style={styles.cardTextDim}>Estado del envío: {order.shipment.status}</Text>}
       </View>
+
+      {order.status === 'paid' && order.shipment && (
+        <>
+          <Text style={styles.sectionH}>Seguimiento</Text>
+          <View style={styles.card}>
+            <ShipmentTracker shipment={order.shipment} />
+          </View>
+        </>
+      )}
 
       <Text style={styles.sectionH}>Total</Text>
       <View style={styles.totals}>
@@ -225,11 +234,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.ink,
     marginBottom: 2,
-  },
-  cardTextDim: {
-    fontSize: fontSizes.xs,
-    color: colors.inkDim,
-    marginTop: spacing.xs,
   },
   totals: {
     backgroundColor: colors.card,

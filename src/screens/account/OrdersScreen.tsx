@@ -5,8 +5,9 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { listOrders } from '../../lib/orders';
 import { formatDate, fmt } from '../../lib/format';
 import { colors, fontSizes, radii, spacing } from '../../theme/tokens';
-import type { Order } from '../../lib/types';
+import type { Order, ShipmentStatus } from '../../lib/types';
 import type { RootStackParamList } from '../../navigation/types';
+import { STATUS_LABEL as SHIPMENT_STATUS_LABEL } from '../../lib/shipmentStatus';
 
 const STATUS_LABEL: Record<Order['status'], string> = {
   pending: 'Pendiente',
@@ -18,6 +19,16 @@ const STATUS_COLOR: Record<Order['status'], string> = {
   pending: colors.gold,
   paid: colors.sage,
   failed: colors.danger,
+};
+
+const SHIPMENT_STATUS_COLOR: Record<ShipmentStatus, string> = {
+  pending: colors.gold,
+  preparing: colors.gold,
+  shipped: colors.roseDeepHover,
+  out_for_delivery: colors.roseDeepHover,
+  delivered: colors.sage,
+  cancelled: colors.danger,
+  returned: colors.danger,
 };
 
 export default function OrdersScreen() {
@@ -75,8 +86,15 @@ export default function OrdersScreen() {
         <Pressable style={styles.card} onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}>
           <View style={styles.cardHead}>
             <Text style={styles.reference}>{item.reference}</Text>
-            <View style={[styles.badge, { backgroundColor: STATUS_COLOR[item.status] }]}>
-              <Text style={styles.badgeText}>{STATUS_LABEL[item.status]}</Text>
+            <View style={styles.badgeGroup}>
+              {item.status === 'paid' && item.shipment && (
+                <View style={[styles.badge, { backgroundColor: SHIPMENT_STATUS_COLOR[item.shipment.status] }]}>
+                  <Text style={styles.badgeText}>{SHIPMENT_STATUS_LABEL[item.shipment.status]}</Text>
+                </View>
+              )}
+              <View style={[styles.badge, { backgroundColor: STATUS_COLOR[item.status] }]}>
+                <Text style={styles.badgeText}>{STATUS_LABEL[item.status]}</Text>
+              </View>
             </View>
           </View>
           <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
@@ -142,6 +160,10 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: '700',
     color: colors.ink,
+  },
+  badgeGroup: {
+    flexDirection: 'row',
+    gap: spacing.xs,
   },
   badge: {
     borderRadius: radii.pill,
