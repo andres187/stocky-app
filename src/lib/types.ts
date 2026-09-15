@@ -59,7 +59,24 @@ export type ShippingContact = {
   notes: string | null;
 };
 
-export type Shipment = { status: 'pending' | 'shipped' | 'delivered'; trackingNumber: string | null };
+export type ShipmentStatus =
+  | 'pending'
+  | 'preparing'
+  | 'shipped'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'cancelled'
+  | 'returned';
+
+export type ShipmentEvent = { status: ShipmentStatus; note: string | null; createdAt: string };
+
+export type Shipment = {
+  status: ShipmentStatus;
+  trackingNumber: string | null;
+  carrier: string | null;
+  updatedAt: string;
+  history: ShipmentEvent[];
+};
 
 export type Payment = { wompiTransactionId: string; status: string; paymentMethodType: string };
 
