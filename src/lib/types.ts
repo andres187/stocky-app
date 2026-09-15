@@ -65,6 +65,7 @@ export type ShipmentStatus =
   | 'shipped'
   | 'out_for_delivery'
   | 'delivered'
+  | 'received'
   | 'cancelled'
   | 'returned';
 
@@ -74,9 +75,29 @@ export type Shipment = {
   status: ShipmentStatus;
   trackingNumber: string | null;
   carrier: string | null;
+  deliveredAt: string | null;
+  receivedAt: string | null;
+  receivedSource: 'customer' | 'auto' | 'admin' | null;
   updatedAt: string;
   history: ShipmentEvent[];
 };
+
+export type ReturnReason = 'no_llego' | 'danado' | 'no_corresponde' | 'talla' | 'otro';
+
+export type ReturnRequest = {
+  id: number;
+  orderId: number;
+  reference: string | null;
+  reason: ReturnReason;
+  body: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  resolutionNote: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PayoutState = 'pending' | 'on_hold' | 'available' | 'paid' | 'blocked';
 
 export type Payment = { wompiTransactionId: string; status: string; paymentMethodType: string };
 

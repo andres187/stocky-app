@@ -27,6 +27,7 @@ const SHIPMENT_STATUS_COLOR: Record<ShipmentStatus, string> = {
   shipped: colors.roseDeepHover,
   out_for_delivery: colors.roseDeepHover,
   delivered: colors.sage,
+  received: colors.sage,
   cancelled: colors.danger,
   returned: colors.danger,
 };

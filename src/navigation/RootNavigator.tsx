@@ -14,6 +14,7 @@ import OrdersScreen from '../screens/account/OrdersScreen';
 import OrderDetailScreen from '../screens/account/OrderDetailScreen';
 import MyReviewsScreen from '../screens/account/MyReviewsScreen';
 import ReviewFormScreen from '../screens/account/ReviewFormScreen';
+import ReturnRequestScreen from '../screens/account/ReturnRequestScreen';
 import { colors } from '../theme/tokens';
 import type { RootStackParamList } from './types';
 
@@ -40,6 +41,7 @@ export default function RootNavigator() {
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Detalle del pedido' }} />
       <Stack.Screen name="MyReviews" component={MyReviewsScreen} options={{ title: 'Mis comentarios' }} />
       <Stack.Screen name="ReviewForm" component={ReviewFormScreen} options={{ title: 'Tu comentario' }} />
+      <Stack.Screen name="ReturnRequest" component={ReturnRequestScreen} options={{ title: 'Solicitar devolución' }} />
     </Stack.Navigator>
   );
 }

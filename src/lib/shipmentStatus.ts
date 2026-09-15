@@ -3,7 +3,7 @@
 // así que ambas copias se mantienen sincronizadas a mano si el flujo cambia.
 import type { Shipment, ShipmentStatus } from './types';
 
-export const STATUS_FLOW: ShipmentStatus[] = ['pending', 'preparing', 'shipped', 'out_for_delivery', 'delivered'];
+export const STATUS_FLOW: ShipmentStatus[] = ['pending', 'preparing', 'shipped', 'out_for_delivery', 'delivered', 'received'];
 export const TERMINAL_STATUSES: ShipmentStatus[] = ['cancelled', 'returned'];
 
 export const STATUS_LABEL: Record<ShipmentStatus, string> = {
@@ -12,6 +12,7 @@ export const STATUS_LABEL: Record<ShipmentStatus, string> = {
   shipped: 'Enviado',
   out_for_delivery: 'En reparto',
   delivered: 'Entregado',
+  received: 'Recibido',
   cancelled: 'Cancelado',
   returned: 'Devuelto',
 };

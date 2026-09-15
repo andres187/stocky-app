@@ -16,3 +16,7 @@ export function checkout(payload: CheckoutPayload) {
 export function listPseBanks() {
   return apiFetch<PseBank[]>('/payments/pse/banks');
 }
+
+export function confirmReceived(id: number | string) {
+  return apiFetch<Order>(`/orders/${id}/recibido`, { method: 'POST' });
+}
